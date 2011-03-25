@@ -1,0 +1,41 @@
+- We can modify any part of any of the song structure at any time
+- Changes will only take place at the next 'clock'
+- The clock is different for each level of the structure
+  - SongFSM: any time
+  - MeasureFSM - beginning of the measure
+  - NoteFSM - beginning of the note
+  
+- Changes to the size (ie duration) of each data structure will happen in a
+  time-synchronized way
+  - So we change the properties of the *next(in time)* data structure
+  - Very similar to combinational logic in EE
+  - Hierarchical, variable "clock" pulse durations
+  
+- Question: how can we naturally encode repeating rhythms?
+- Specifically: in most songs, a core rhythm is determined and repeated throughout the
+  duration of the song with occasional *temporary* modification
+  - Solution1: leave this entirely up to the genome:
+    a) Generate a population of rhythms
+    b) Add a gene to control a rhythm pointer; this rhythm pointer will remain at this new value until it is changed by another gene
+    c) NOTE: each chromosome will encode a rhythm; the population of rhythms will exist in the collective population of individuals
+  -Solution2:
+    a) See (a) in (1)
+    b) Add a gene to control the playing different rhythm for a number of measures prior to reverting back to the original
+    c) See (c) in (1)
+  -Solution3:
+    a) 
+
+* Use structured genes (ie. AudioStateControl instead of int)
+* TimeFSM - replaces an HMM in this encoding system
+* SongFSM : TimeFSM - maintains clock for applying effects
+  - global effects
+  * MeasureFSM - maintains clock for committing changes to measures
+    - key
+    - time
+    * Rhythm - times at which notes can start being played;
+             - like a time-synchronized vector of clock-enables for the note clock
+      - 
+    * NoteFSM - maintains clock for committing changes to notes (dependent on current rhythm)
+      - duration
+      - pitch
+       
