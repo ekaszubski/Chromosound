@@ -38,18 +38,18 @@
 
 #include <AL/alut.h>
 
-static void reportError( void )
+static void alutReportError()
 {
 	fprintf( stderr, "ALUT error: %s\n", alutGetErrorString( alutGetError() ) );
 	exit( EXIT_FAILURE );
 }
 
-static void checkAndQueueBuffer( const ALuint & buffer )
+static void alutCheckAndQueueBuffer( const ALuint & sound_source, const ALuint & buffer )
 {
-	if ( !buffer ) reportError();
+	if ( !buffer ) alutReportError();
 	else
 	{
-		alSourceQueueBuffers( sound_source_, 1, &buffer );
+		alSourceQueueBuffers( sound_source, 1, &buffer );
 	}
 }
 

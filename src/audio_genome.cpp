@@ -34,3 +34,5 @@
  *******************************************************************************/
 
 #include "../include/audio_genome.h"
+
+AudioGenomeDefs::WaveFSM AudioGenome::wave_fsm = AudioGenomeDefs::WaveFSM();

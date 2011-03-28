@@ -56,7 +56,7 @@
  *
  */
 
-namespace GAUtil
+namespace GeneticProcessUtil
 {
 	static double drand()
 	{
@@ -84,11 +84,14 @@ namespace GAUtil
 	}
 
 	template<class _DataType>
-	struct Str
+	class Str
 	{
+	public:
 		static std::string str( _DataType data )
 		{
-			return data;
+			std::stringstream ss;
+			ss << data;
+			return ss.str();
 		}
 	};
 }
@@ -97,11 +100,17 @@ namespace GAUtil
 template<class _DataType>
 class GeneBase
 {
+	typedef double _MutationRateType;
 public:
 	_DataType data_;
+	_MutationRateType mutation_rate_;
+	bool enable_dynamic_mutation_rate_;
+	_MutationRateType min_mutation_rate_;
+	_MutationRateType max_mutation_rate_;
 
-	GeneBase( _DataType data = _DataType() ) :
-		data_( data )
+	GeneBase( _DataType data = _DataType(), _MutationRateType mutation_rate = 0.05, bool enable_dynamic_mutation_rate = false, _MutationRateType min_mutation_rate = 0.0001,
+			_MutationRateType max_mutation_rate = 1.0 ) :
+		data_( data ), mutation_rate_( mutation_rate ), enable_dynamic_mutation_rate_( enable_dynamic_mutation_rate ), min_mutation_rate_( min_mutation_rate ), max_mutation_rate_( max_mutation_rate )
 	{
 		//
 	}
@@ -111,19 +120,34 @@ public:
 		data_ = data;
 	}
 
+	virtual void tryMutate()
+	{
+		if ( GeneticProcessUtil::drand() <= mutation_rate_ )
+		{
+			__DEBUG__VERBOSE__ printf( "--mutating gene %s\n", this->toString().c_str() );
+			if ( enable_dynamic_mutation_rate_ ) mutation_rate_ = GeneticProcessUtil::rand( min_mutation_rate_, max_mutation_rate_ );
+			this->mutate();
+		}
+	}
+
 	virtual void mutate()
 	{
-
+		__DEBUG__VERBOSE__ printf( "Cannot mutate GeneBase\n" );
 	}
 
 	virtual void randomize()
 	{
-
+		__DEBUG__VERBOSE__ printf( "Cannot randomize GeneBase\n" );
 	}
 
-	const _DataType data() const
+	const _DataType & data() const
 	{
 		return data_;
+	}
+
+	virtual std::string toString()
+	{
+		return GeneticProcessUtil::Str<_DataType>::str( data_ );
 	}
 };
 
@@ -160,7 +184,7 @@ public:
 
 	void randomize()
 	{
-		data_ = GAUtil::drand() < 0.5;
+		data_ = GeneticProcessUtil::drand() < 0.5;
 	}
 };
 
@@ -170,12 +194,12 @@ class Gene<int> : public GeneBase<int>
 public:
 	void mutate()
 	{
-		data_ += GAUtil::rand( 10, true );
+		data_ += GeneticProcessUtil::rand( 10, true );
 	}
 
 	void randomize()
 	{
-		data_ = GAUtil::rand( -100, 100 );
+		data_ = GeneticProcessUtil::rand( -100, 100 );
 	}
 };
 
@@ -185,12 +209,12 @@ class Gene<unsigned int> : public GeneBase<unsigned int>
 public:
 	void mutate()
 	{
-		data_ += GAUtil::rand( 0, 20 );
+		data_ += GeneticProcessUtil::rand( 0, 20 );
 	}
 
 	void randomize()
 	{
-		data_ = GAUtil::rand( 0, 200 );
+		data_ = GeneticProcessUtil::rand( 0, 200 );
 	}
 };
 
@@ -200,12 +224,12 @@ class Gene<float> : public GeneBase<float>
 public:
 	void mutate()
 	{
-		data_ += GAUtil::rand( 10, true );
+		data_ += GeneticProcessUtil::rand( 10, true );
 	}
 
 	void randomize()
 	{
-		data_ = GAUtil::rand( -100, 100 );
+		data_ = GeneticProcessUtil::rand( -100, 100 );
 	}
 };
 
@@ -215,12 +239,12 @@ class Gene<double> : public GeneBase<double>
 public:
 	void mutate()
 	{
-		data_ += GAUtil::rand( 10, true );
+		data_ += GeneticProcessUtil::rand( 10, true );
 	}
 
 	void randomize()
 	{
-		data_ = GAUtil::rand( -100, 100 );
+		data_ = GeneticProcessUtil::rand( -100, 100 );
 	}
 };
 
@@ -230,10 +254,11 @@ class Chromosome
 {
 public:
 	typedef Gene<_DataType> _Gene;
+	typedef _Gene * _GenePtr;
 	typedef Chromosome<_DataType, _SizeType> _Chromosome;
 	typedef _Chromosome * _ChromosomePtr;
 
-	typedef std::vector<_Gene> _GeneVector;
+	typedef std::vector<_GenePtr> _GeneVector;
 	typedef typename _GeneVector::iterator _GeneIterator;
 
 	struct Descriptor
@@ -260,48 +285,70 @@ public:
 		else genes_.resize( descriptor_.size_ );
 	}
 
-	void mutate( double mutation_rate = 0.001 )
+	virtual ~Chromosome()
+	{
+		for ( _GeneIterator it = begin(); it != end(); ++it )
+		{
+			if ( *it ) delete *it;
+		}
+	}
+
+	virtual void mutate( double mutation_rate = 0.001 )
 	{
 		__DEBUG__VERBOSE__ printf( "Mutating chromosome with mutation rate %f\n", mutation_rate );
 		_GeneIterator it = genes_.begin();
 		for ( _SizeType i = 0; it != genes_.end(); ++it, ++i )
 		{
-			if ( GAUtil::drand() <= mutation_rate )
-			{
-				__DEBUG__VERBOSE__ printf( "--mutating gene %u\n", i );
-				it->mutate();
-			}
+			( *it )->tryMutate();
 		}
 	}
 
-	void randomize()
+	virtual void randomize()
 	{
 		_GeneIterator it = genes_.begin();
 		for ( ; it != genes_.end(); ++it )
 		{
-			it->randomize();
+			if ( *it ) delete *it;
+			_GenePtr new_gene = new _Gene();
+			new_gene->randomize();
+			*it = new_gene;
 		}
 	}
 
-	_ChromosomePtr copy()
+	virtual _ChromosomePtr copy()
 	{
 		_ChromosomePtr new_chromosome = new _Chromosome( descriptor_, _GeneVector( descriptor_.size_ ) );
-		std::copy( genes_.begin(), genes_.end(), new_chromosome->genes_.begin() );
+		_GeneIterator old_gene_it = begin();
+		_GeneIterator new_gene_it = new_chromosome->genes_.begin();
+
+		for ( ; old_gene_it != end(); ++old_gene_it, ++new_gene_it )
+		{
+			_GenePtr old_gene = *old_gene_it;
+			_GenePtr new_gene = new _Gene();
+			new_gene->data_ = old_gene->data_;
+			*new_gene_it = new_gene;
+		}
+
+		// __DEBUG__VERBOSE__ printf( "Old chromosome %s\n", toString().c_str() );
+		// __DEBUG__VERBOSE__ printf( "New chromosome %s\n", new_chromosome->toString().c_str() );
+
+		//std::copy( genes_.begin(), genes_.end(), new_chromosome->genes_.begin() );
 		return new_chromosome;
 	}
 
-	std::string toString()
+	virtual std::string toString()
 	{
 		std::stringstream ss;
 
-		_GeneIterator it = genes_.begin();
-		ss << GAUtil::Str<_DataType>::str( it->data_ );
-		++it;
-
-		for ( ; it != genes_.end(); it++ )
+		_GeneIterator it = begin();
+		do
 		{
-			ss << "\\" << GAUtil::Str<_DataType>::str( it->data_ );
+			_GenePtr current_gene = *it;
+			if ( current_gene ) ss << current_gene->toString();
+			else ss << "NULL";
+			++it;
 		}
+		while ( it != end() );
 
 		return ss.str();
 	}
@@ -333,6 +380,7 @@ public:
 	typedef _Chromosome * _ChromosomePtr;
 
 	typedef typename _Chromosome::_Gene _Gene;
+	typedef _Gene * _GenePtr;
 
 	typedef typename _Chromosome::_GeneVector _GeneVector;
 	typedef typename _GeneVector::iterator _GeneIterator;
@@ -366,6 +414,19 @@ public:
 		else chromosomes_.resize( descriptor_.size_ );
 	}
 
+	const _ChromosomeVector & chromosomes() const
+	{
+		return chromosomes_;
+	}
+
+	virtual ~Genome()
+	{
+		for ( _ChromosomeIterator it = begin(); it != end(); ++it )
+		{
+			if ( *it ) delete *it;
+		}
+	}
+
 	virtual _FitnessType calculateFitness()
 	{
 		fitness_ = 0;
@@ -393,7 +454,7 @@ public:
 	}
 
 	// performs mutation and returns the mutated genome
-	void mutate( double mutation_rate = 0.001 )
+	virtual void mutate( double mutation_rate = 0.001 )
 	{
 		__DEBUG__VERBOSE__ printf( "Mutating genome with mutation rate %f\n", mutation_rate );
 		_ChromosomeIterator it = chromosomes_.begin();
@@ -404,7 +465,7 @@ public:
 		}
 	}
 
-	void randomize()
+	virtual void randomize()
 	{
 		_ChromosomeIterator it = chromosomes_.begin();
 		for ( ; it != chromosomes_.end(); ++it )
@@ -441,7 +502,7 @@ public:
 		return new_genome;
 	}
 
-	std::string toString()
+	virtual std::string toString()
 	{
 		std::stringstream ss;
 
@@ -590,8 +651,9 @@ public:
 		return population_;
 	}
 
-	void initializePopulation()
+	virtual void initializePopulation()
 	{
+		__DEBUG__QUIET__ printf( "Initializing population...\n" );
 		_PopulationIterator it = population_.begin();
 		for ( ; it != population_.end(); ++it )
 		{
@@ -599,9 +661,11 @@ public:
 			new_genome->randomize();
 			*it = new_genome;
 		}
+
+		evaluatePopulation( true );
 	}
 
-	void printPopulation()
+	virtual void printPopulation()
 	{
 		_PopulationIterator it = population_.begin();
 		for ( _SizeType i = 0; it != population_.end(); ++it, ++i )
@@ -611,7 +675,7 @@ public:
 		}
 	}
 
-	_FitnessType evaluateIndividual( _GenomePtr individual )
+	virtual _FitnessType evaluateIndividual( _GenomePtr individual )
 	{
 
 		// filter input vector through individual
@@ -620,8 +684,9 @@ public:
 		return individual->calculateFitness();
 	}
 
-	void evaluatePopulation( bool unconditional_evaluation = false )
+	virtual void evaluatePopulation( bool unconditional_evaluation = false )
 	{
+		__DEBUG__NORMAL__ printf( "Evaluating population of %u individuals... %u\n", population_.size(), unconditional_evaluation );
 		if ( !flags_.population_evaluated_ || unconditional_evaluation )
 		{
 			population_stats_.total_fitness_ = 0;
@@ -643,12 +708,12 @@ public:
 			}
 			population_stats_.avg_fitness_ = population_stats_.total_fitness_ / (_FitnessType) population_.size();
 
-			if( population_stats_.min_fitness_ == population_stats_.max_fitness_ == 0 ) population_stats_.min_fitness_ = population_stats_.max_fitness_ = 1;
+			__DEBUG__VERBOSE__ printf( "Total fitness: %f\n", population_stats_.total_fitness_ );
 
-			if ( population_stats_.min_fitness_ != population_stats_.max_fitness_ )
-			{
-				population_stats_.total_fitness_ += -1 * (_FitnessType) population_.size() * population_stats_.min_fitness_;
-			}
+			population_stats_.total_fitness_ += -1 * (_FitnessType) population_.size() * ( population_stats_.min_fitness_ - 1 );
+
+			__DEBUG__VERBOSE__ printf( "Total fitness: %f\n", population_stats_.total_fitness_ );
+
 			population_stats_.total_fitness_proportion_ = (_FitnessType) RAND_MAX / population_stats_.total_fitness_;
 
 			flags_.population_evaluated_ = true;
@@ -661,7 +726,7 @@ public:
 	}
 
 	// assumes evaluatePopulation() has been run and the relevant statistics have been gathered
-	_GenomePtr rouletteSelect()
+	virtual _GenomePtr rouletteSelect()
 	{
 		__DEBUG__NORMAL__ printf( "--starting roulette\n" );
 		// total area = RAND_MAX
@@ -675,10 +740,10 @@ public:
 		_FitnessType total = 0;
 
 		_PopulationIterator it = population_.begin();
+		_FitnessType lower_bound = -population_stats_.min_fitness_ + 1;
 		for ( ; it != population_.end(); ++it )
 		{
 			_GenomePtr current_genome = *it;
-			_FitnessType lower_bound = ( population_stats_.min_fitness_ == population_stats_.max_fitness_ ) ? 0 : -population_stats_.min_fitness_;
 			_FitnessType slice = ( lower_bound + current_genome->fitness() ) * population_stats_.total_fitness_proportion_;
 			__DEBUG__NORMAL__ printf( "total: %f\nslice: %f\n", total, slice );
 			if ( total <= selection && selection < total + slice ) return current_genome;
@@ -690,13 +755,13 @@ public:
 		return NULL;
 	}
 
-	const _PopulationVector & step( _SizeType num_generations = 1 )
+	const virtual _PopulationVector & step( _SizeType num_generations = 1, bool pre_evaluate = false, bool post_evaluate = true )
 	{
 		__DEBUG__QUIET__ printf( "\n--stepping for %u generations--\n", num_generations );
 		for ( _SizeType i = 0; i < num_generations; ++i )
 		{
 			__DEBUG__QUIET__ printf( "--currently on generation %u--\n", i );
-			std::vector<_GeneticPair> best_parents = selectBestParents( true );
+			std::vector<_GeneticPair> best_parents = selectBestParents( pre_evaluate );
 
 			__DEBUG__NORMAL__
 			{
@@ -708,15 +773,18 @@ public:
 			}
 
 			createNewGeneration( best_parents );
+
+			if ( post_evaluate ) evaluatePopulation();
 		}
 		__DEBUG__QUIET__ printf( "--stepping complete\n\n" );
 		return population_;
 	}
 
-	// 1) evaluate the population
+	// 1) optionally evaluate the population
 	// 2) roulette-style selection of parents (remove parent from list of possibilities after selection)
 	// 3) pair n = { parent 2n, parent 2n + 1 }
-	std::vector<_GeneticPair> selectBestParents( bool pre_evaluate = false )
+	// 4) optionally evaluate the population
+	virtual std::vector<_GeneticPair> selectBestParents( bool pre_evaluate = false )
 	{
 		if ( pre_evaluate ) evaluatePopulation();
 
@@ -734,11 +802,13 @@ public:
 			// we want parents to breed more than once but we don't want a parent to breed with itself
 			_GenomePtr parent1 = rouletteSelect();
 			_GenomePtr parent2 = NULL;
+			unsigned int timeout = 0;
 			do
 			{
 				parent2 = rouletteSelect();
+				++timeout;
 			}
-			while ( parent1 == parent2 );
+			while ( parent1 == parent2 && timeout < 20 );
 
 			parent_pairs.push_back( _GeneticPair( parent1, parent2 ) );
 		}
@@ -747,7 +817,7 @@ public:
 	}
 
 	// performs all steps necessary to generate a new population including deleting the old one
-	void createNewGeneration( std::vector<_GeneticPair> parent_pairs )
+	virtual void createNewGeneration( std::vector<_GeneticPair> parent_pairs )
 	{
 		__DEBUG__VERBOSE__ printf( "--creating new generation from %zu parent pairs--\n", parent_pairs.size() );
 		// for each pair, make a pair of new children via:
@@ -790,15 +860,16 @@ public:
 			}
 		}
 
+		// since we just changed the population, set this flag to reflect that
 		flags_.population_evaluated_ = false;
 	}
 
 	// performs crossover and returns the entire family
 	// note: performs crossover only on whole chromosomes so no chromosomes are ever split
-	_Family crossover( const _GeneticPair & parents )
+	virtual _Family crossover( const _GeneticPair & parents )
 	{
 		__DEBUG__VERBOSE__ printf( "--crossing over parents:\n{%s}\n{%s}\n", parents.first->toString().c_str(), parents.second->toString().c_str() );
-		_SizeType crossover_point = GAUtil::rand( (_SizeType) 0, descriptor_.genome_descriptor_.size_ - 1 );
+		_SizeType crossover_point = GeneticProcessUtil::rand( (_SizeType) 0, descriptor_.genome_descriptor_.size_ - 1 );
 
 		__DEBUG__VERBOSE__ printf( "--selected crossover point %u\n", crossover_point );
 

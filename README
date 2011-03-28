@@ -5,8 +5,7 @@
   - MeasureFSM - beginning of the measure
   - NoteFSM - beginning of the note
   
-- Changes to the size (ie duration) of each data structure will happen in a
-  time-synchronized way
+- Changes to the size (ie duration) of each data structure will happen in a time-synchronized way
   - So we change the properties of the *next(in time)* data structure
   - Very similar to combinational logic in EE
   - Hierarchical, variable "clock" pulse durations
@@ -30,11 +29,24 @@
 * SongFSM : TimeFSM - maintains clock for applying effects
   - global effects
   * MeasureFSM - maintains clock for committing changes to measures
-    - key
+    - key 
+      - a primary and secondary key are picked for the song
+      - a minor key select gene will:
+        - temporarily change the key
+        - define a short interval during which the key will remain changed before switching back to the previous key
+      - a major key select gene will:
+        - temporarily change the key from the current key to the secondary key
+        - define a rather long interval during which the key will remain changed before reverting to the major key
+        - override minor key select gene
     - time
-    * Rhythm - times at which notes can start being played;
-             - like a time-synchronized vector of clock-enables for the note clock
-      - 
+      - same behavior as key 
+    * Rhythm
+      - times at which notes must start being played
+      - the idea of a commit gene has been factored out of the generic gene space and encoded in a rhythm gene
+      - the rhythm chromosomes will be long enough that they can encode the maximum possible time for the measure
+      - if the time is shorter than the rhythm, the rhythm will be truncated
+      - since a change in rhythm is allowed to happen at the positive edge of the measure clock, it's highly likely that the time and rhythm will change simultaneously, allowing for a more natural change of pace in the song
+      - a primary/secondary rhythm and a major/minor rhythm select gene will also be used as with key and time
     * NoteFSM - maintains clock for committing changes to notes (dependent on current rhythm)
       - duration
       - pitch

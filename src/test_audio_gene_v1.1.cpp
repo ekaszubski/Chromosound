@@ -63,169 +63,10 @@ ALfloat frequency_ = 1000;
 ALfloat phase_ = 0.0f;
 ALfloat duration_ = 0.5f;
 
-
-
 // 0:0, 1:0, 0:0, 2:0
 // no effect,
-
-typedef typename AudioGenome::_DataType _DataType;
-
-struct WaveFSM
-{
-	// if our note timed out, we can play the previous note and start counting the silence time
-	// if we found a commit bit and our note didn't time out, we can play the previous note for the number of cycles specified by the counter
-	// if we found a commit bit and our note did time out, we can start playing the silence wave for the number of cycles specified by the counter
-	// either way, if we found a commit bit, we can start counting the number of cycles to play the current note
-
-	unsigned int timer_counter;
-	unsigned int timer_max;
-	bool timer_enabled;
-	bool note_interrupted;
-	unsigned int last_note_duration;
-	bool counting_silence;
-	bool has_previous_state;
-
-	WaveState state, last_state;
-
-	WaveFSM()
-	{
-		printf( "\n\n This should only print once!!\n\n" );
-		timer_counter = 0;
-		timer_max = 0;
-		timer_enabled = true;
-		note_interrupted = false;
-		last_note_duration = 0;
-		counting_silence = false;
-		has_previous_state = false;
-	}
-
-	// return 0 to do nothing
-	// return 1 to play last_state
-	// return 2 to play silence
-	int update( _DataType control_bit )
-	{
-		__DEBUG__NORMAL__ printf( "%u: Updating %s\n", timer_counter, GAUtil::Str<_DataType>::str( control_bit ).c_str() );
-
-		int result = 0;
-		bool do_commit = false;
-		switch ( control_bit.toggle_type )
-		{
-		//bool - toggle if( value )
-		case AudioBitEncodings::commit:
-			do_commit = control_bit.toggle_value;
-			if ( do_commit ) __DEBUG__NORMAL__ printf( "Saving current state:\n%s\n", state.toString().c_str() );
-			// save our current state for reference; start making changes to our new state
-			last_state = state;
-			has_previous_state = true;
-			break;
-		case AudioBitEncodings::key_rotate:
-			state.key_index += control_bit.toggle_value ? 1 : -1;
-			range( state.key_index, (int) 0, (int) 12, true );
-			__DEBUG__NORMAL__ printf( "Updated key_index: %u\n", state.key_index );
-			break;
-		case AudioBitEncodings::key_flip:
-			if ( control_bit.toggle_value ) state.key_is_major = !state.key_is_major;
-			__DEBUG__NORMAL__ printf( "Updated key_is_major: %u\n", state.key_is_major );
-			break;
-
-			// int - increment by value
-		case AudioBitEncodings::duration:
-			state.duration_index += control_bit.toggle_value;
-			range( state.duration_index, (int) 0, (int) 4 );
-			__DEBUG__NORMAL__ printf( "Updated duration_index: %u\n", state.duration_index );
-			break;
-		case AudioBitEncodings::time:
-			state.beat_frequency_index += control_bit.toggle_value;
-			range( state.beat_frequency_index, (int) 0, (int) 3 );
-			__DEBUG__NORMAL__ printf( "Updated beat_frequency_index: %u\n", state.beat_frequency_index );
-			break;
-		case AudioBitEncodings::pitch:
-			state.pitch_index += control_bit.toggle_value;
-			range( state.pitch_index, (int) 21, (int) 68 );
-			__DEBUG__NORMAL__ printf( "Updated pitch_index: %u\n", state.pitch_index );
-			break;
-		}
-
-		if ( timer_enabled ) ++timer_counter;
-		if ( timer_counter == timer_max ) timer_enabled = false;
-
-		if ( !has_previous_state ) return 0;
-
-		// commit reached
-		if ( do_commit )
-		{
-			// our counter now contains the number of cycles for which we should play silence
-			if ( counting_silence )
-			{
-				result = 2;
-				last_note_duration = timer_counter;
-				__DEBUG__NORMAL__ printf( "We should play silence for %u cycles\n", last_note_duration );
-			}
-			// we interrupted playback of the previous note; our counter shows how many cycles we should play it for
-			else
-			{
-				result = 1;
-				last_note_duration = timer_counter;
-				__DEBUG__NORMAL__ printf( "Note interrupted. We should play sound for %u cycles\n", last_note_duration );
-			}
-
-			// start a timer to count the number of cycles the current note is active
-			startTimer( getDuration( state.duration_index ) );
-		}
-		// we timed out, store how long we were playing the note for and start tracking how long we should play silence
-		else if ( !timer_enabled )
-		{
-			result = 1;
-			counting_silence = true;
-			last_note_duration = timer_counter;
-			__DEBUG__NORMAL__ printf( "Note finished playing normally. We should play sound for %u cycles\n", last_note_duration );
-			startTimer();
-		}
-
-		return result;
-	}
-	// 1. commit reached; start countdown
-	// 2. countdown timed out; start countup
-	// 3. commit reached;
-	//       1       2     3
-	// X X X C X X X[X]X X[C]
-
-	void startTimer( unsigned int timer_value = 0 )
-	{
-		__DEBUG__NORMAL__ printf( "Starting timer for %u cycles\n", timer_value );
-		timer_enabled = true;
-		timer_counter = 0;
-		timer_max = timer_value;
-	}
-
-	// 0 -> wait 1; 4 -> wait 16
-	unsigned int getDuration( unsigned int duration_index_ )
-	{
-		return pow( 2, duration_index_ );
-	}
-};
-
-// 0 -> 1/16; 4 -> 1/1
-static float getDurationFromIndex( _SizeType duration_index )
-{
-	return 1 / pow( 2, 4 - duration_index );
-}
-
-static float getDurationFromCycles( _SizeType num_cycles )
-{
-	return (float) num_cycles / 16;
-}
-
-typedef double _FitnessType;
-
-typedef typename _GenomeBase::_Chromosome _Chromosome;
-typedef typename _GenomeBase::_ChromosomePtr _ChromosomePtr;
-
-WaveFSM wave_fsm = WaveFSM();
-
-typedef AudioGenome _Genome;
-typedef AudioGenome::_WaveDescriptorIterator _WaveDescriptorIterator;
-
+typedef AudioGenome _AudioGenome;
+typedef _AudioGenome _Genome;
 typedef GeneticProcess<_Genome> _GeneticProcess;
 
 typedef typename _GeneticProcess::_GenomePtr _GenomePtr;
@@ -238,6 +79,14 @@ typedef typename _GeneticProcess::_ChromosomeIterator _ChromosomeIterator;
 typedef typename _GeneticProcess::_GeneIterator _GeneIterator;
 typedef typename _GeneticProcess::_GeneticPair _GeneticPair;
 
+typedef AudioGenomeDefs::_SizeType _SizeType;
+typedef AudioGenomeDefs::_GenomeBase _GenomeBase;
+typedef AudioGenomeDefs::WaveDescriptor _WaveDescriptor;
+
+typedef typename _GenomeBase::_Chromosome _Chromosome;
+typedef typename _GenomeBase::_ChromosomePtr _ChromosomePtr;
+typedef typename _AudioGenome::_WaveDescriptorIterator _WaveDescriptorIterator;
+
 unsigned int loadPopulationIntoBuffer( _PopulationVector population )
 {
 	unsigned int num_buffers = 0;
@@ -249,7 +98,7 @@ unsigned int loadPopulationIntoBuffer( _PopulationVector population )
 		// printf( "number of wave descriptors: %zu\n", current_genome->wave_descriptors.size() );
 		for ( _WaveDescriptorIterator wave_descriptor_it = current_genome->wave_descriptors.begin(); wave_descriptor_it != current_genome->wave_descriptors.end(); ++wave_descriptor_it )
 		{
-			WaveDescriptor current_descriptor = *wave_descriptor_it;
+			_WaveDescriptor current_descriptor = *wave_descriptor_it;
 			// every gene advances our "clock" 1/16 of a beat
 			// the wave state is updated first
 			// if we've reached a commit bit, the buffer for the wave is generated and queued
@@ -263,18 +112,33 @@ unsigned int loadPopulationIntoBuffer( _PopulationVector population )
 			{
 				printf( "Creating silent clip: %f %f\n", current_descriptor.frequency, current_descriptor.duration );
 			}
-			checkAndQueueBuffer( alutCreateBufferWaveform( current_descriptor.wave_type, current_descriptor.frequency, current_descriptor.phase, current_descriptor.duration ) );
+			alutCheckAndQueueBuffer( sound_source_, alutCreateBufferWaveform( current_descriptor.wave_type, current_descriptor.frequency, current_descriptor.phase, current_descriptor.duration ) );
 
 		}
 	}
 	return num_buffers;
 }
 
+// enables printing of custom states
+/*namespace GeneticProcessUtil
+{
+	template<>
+	struct Str<_DataType>
+	{
+		static std::string str( _DataType data )
+		{
+			std::stringstream ss;
+			ss << "(" << data.toggle_type << ":" << data.toggle_value << ")";// << ":" << data.beat_index << ")";
+			return ss.str();
+		}
+	};
+}*/
+
 //WaveFSM AudioGenome::wave_fsm = WaveFSM();
 
 int main( int argc, char **argv )
 {
-	const _SizeType population_size = 10, genome_size = 4*16, chromosome_size = 1;
+	const _SizeType population_size = 10, genome_size = 4 * 16, chromosome_size = 1;
 	const double mutation_rate = 0.05;
 	const long rand_seed = time( NULL );
 
@@ -283,19 +147,22 @@ int main( int argc, char **argv )
 	_GeneticProcess process( descriptor );
 
 	process.initializePopulation();
-	process.evaluatePopulation();
 	process.printPopulation();
 
-	if ( !alutInit( &argc, argv ) ) reportError();
+	if ( !alutInit( &argc, argv ) ) alutReportError();
 
 	alGenSources( 1, &sound_source_ );
 
 	loadPopulationIntoBuffer( process.population() );
 
+	process.step();
+	process.printPopulation();
+
 	_SizeType generation_counter = 0;
 
 	alSourcePlay( sound_source_ );
 	int num_buffers_processed, num_buffers_queued;
+
 	do
 	{
 		alGetSourcei( sound_source_, AL_BUFFERS_PROCESSED, &num_buffers_processed );
@@ -320,16 +187,14 @@ int main( int argc, char **argv )
 			if ( num_buffers_queued <= 50 )
 			{
 				++generation_counter;
-				process.step();
-				process.evaluatePopulation();
-				loadPopulationIntoBuffer( process.population() );
-				process.printPopulation();
+				loadPopulationIntoBuffer( process.step() );
+				//process.printPopulation();
 			}
 		}
 
 		alutSleep( 1 );
 	}
-	while ( num_buffers_queued > 0 && generation_counter < 15 );
+	while ( num_buffers_queued > 0 && generation_counter < 20 );
 
 	process.evaluatePopulation();
 
@@ -339,7 +204,7 @@ int main( int argc, char **argv )
 
 	if ( !alutExit() )
 	{
-		reportError();
+		alutReportError();
 	}
 	return EXIT_SUCCESS;
 }

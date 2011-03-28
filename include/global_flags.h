@@ -47,7 +47,7 @@ namespace flags
 			const static int NORMAL = 2;
 			const static int VERBOSE = 3;
 
-			const static int LEVEL = QUIET;
+			const static int LEVEL = VERBOSE;
 		}
 	}
 }
