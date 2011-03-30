@@ -1,53 +1,54 @@
-- We can modify any part of any of the song structure at any time
-- Changes will only take place at the next 'clock'
-- The clock is different for each level of the structure
-  - SongFSM: any time
-  - MeasureFSM - beginning of the measure
-  - NoteFSM - beginning of the note
-  
-- Changes to the size (ie duration) of each data structure will happen in a time-synchronized way
-  - So we change the properties of the *next(in time)* data structure
-  - Very similar to combinational logic in EE
-  - Hierarchical, variable "clock" pulse durations
-  
-- Question: how can we naturally encode repeating rhythms?
-- Specifically: in most songs, a core rhythm is determined and repeated throughout the
-  duration of the song with occasional *temporary* modification
-  - Solution1: leave this entirely up to the genome:
-    a) Generate a population of rhythms
-    b) Add a gene to control a rhythm pointer; this rhythm pointer will remain at this new value until it is changed by another gene
-    c) NOTE: each chromosome will encode a rhythm; the population of rhythms will exist in the collective population of individuals
-  -Solution2:
-    a) See (a) in (1)
-    b) Add a gene to control the playing different rhythm for a number of measures prior to reverting back to the original
-    c) See (c) in (1)
-  -Solution3:
-    a) 
+Revised and refined description:
+----------------------------------------------------------------------
 
-* Use structured genes (ie. AudioStateControl instead of int)
-* TimeFSM - replaces an HMM in this encoding system
-* SongFSM : TimeFSM - maintains clock for applying effects
-  - global effects
-  * MeasureFSM - maintains clock for committing changes to measures
-    - key 
-      - a primary and secondary key are picked for the song
-      - a minor key select gene will:
-        - temporarily change the key
-        - define a short interval during which the key will remain changed before switching back to the previous key
-      - a major key select gene will:
-        - temporarily change the key from the current key to the secondary key
-        - define a rather long interval during which the key will remain changed before reverting to the major key
-        - override minor key select gene
-    - time
-      - same behavior as key 
-    * Rhythm
-      - times at which notes must start being played
-      - the idea of a commit gene has been factored out of the generic gene space and encoded in a rhythm gene
-      - the rhythm chromosomes will be long enough that they can encode the maximum possible time for the measure
-      - if the time is shorter than the rhythm, the rhythm will be truncated
-      - since a change in rhythm is allowed to happen at the positive edge of the measure clock, it's highly likely that the time and rhythm will change simultaneously, allowing for a more natural change of pace in the song
-      - a primary/secondary rhythm and a major/minor rhythm select gene will also be used as with key and time
-    * NoteFSM - maintains clock for committing changes to notes (dependent on current rhythm)
-      - duration
-      - pitch
-       
+Data:
+--------------
+
+- Determine a measure repeat length
+  - rhythm length will be determined based on the time, the beat resolution, and this value
+  - note: the rhythm does not determine beat length, only beat start times
+- Determine a rhythm (parse rhythm genes using RhythmFSM)
+- Determine a sequence of notes (parse note sequence using the rhythm as commits and the NoteFSM)
+- For each note in the sequence, encode a beat-synchronized note modifier (to potentially change the pitch or duration of the note slightly from the pre-determined values)
+
+- Raw data (building blocks)
+  - Rhythm component sequence \__ Rhythm
+  - Rhythm modifier sequence _/          \
+  - Note component sequence               > NoteSequence
+  - Note modifier sequence ______________/
+
+- Pooled data (global data built from the local data of all individuals; most modifier genes pick a value from these pools)
+  - Rhythm pool
+  - Note sequence pool
+  - Measure repeat length pool
+  - Time pool
+
+Algorithm:
+--------------
+
+- Algorithm description:
+  - Each individual will directly encode a rhythm and a note modifier sequence
+    - Rhythm: sequence of "commit" genes; in other words, times during which notes must start being played
+      - Each rhythm component gene specifies how long to wait prior to performing a commit
+      * Question: should the commit gene reset the state of the NoteFSM to some base state?
+        * Answer: no; however, this information should instead be reset at the beginning of each measure *sequence* (see measure repeat length)
+    - Note modifier sequence: sequence of *changes* to the pitch and duration values of the current note
+      * Question: how many of these genes to we store?
+        * Problem: without knowing the rhythm, we can't know what the number of commits/measure is
+        * Answer:
+          * an arbitrary yet consistent value (for all genes in the simulation); units: (genes/beat)
+          * so if our time is 4/4 and our beat resolution is 1/16, we can have at most 4*16 beats/measure
+          * so the total number of genes to store is genes/beat * beats/measure / beat_resolution
+  - At the beginning of each generation:
+    - The rhythm component sequence and note component sequence will be parsed from each individual in the population
+      - This will yield one unique rhythm component sequence and note component sequence per individual
+    - The rhythm component sequence will be compiled into a rhythm
+    - Using the rhythm and a note modifier sequence, the note component sequence will be compiled into a note sequence
+  - At the beginning of each measure sequence:
+    - All FSMs in the hierarchy below the measure sequence will be reset
+    - Changes to the key, time, measure sequence length, and rhythm (ie. the currently selected subset of all pooled data) are applied
+  - At the beginning of each measure:
+    - Measure modifiers are applied (temporarily change some property of the current measure)
+  - At the beginning of each note:
+    - Note modifiers are applied (see above)
+  

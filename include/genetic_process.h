@@ -84,16 +84,24 @@ namespace GeneticProcessUtil
 	}
 
 	template<class _DataType>
-	class Str
+	static void range( _DataType & value, _DataType low, _DataType high, bool wrap = false )
 	{
-	public:
-		static std::string str( _DataType data )
+		if ( !wrap )
 		{
-			std::stringstream ss;
-			ss << data;
-			return ss.str();
+			value = value < low ? low : value > high ? high : value;
+			return;
 		}
-	};
+
+		value %= ( high - low );
+	}
+
+	template<class _DataType>
+	static std::string geneToString( _DataType data )
+	{
+		std::stringstream ss;
+		ss << data;
+		return ss.str();
+	}
 }
 
 // this class encodes the most basic unit of the genome and, most importantly, describes exactly what a mutation on that unit means
@@ -147,7 +155,7 @@ public:
 
 	virtual std::string toString()
 	{
-		return GeneticProcessUtil::Str<_DataType>::str( data_ );
+		return GeneticProcessUtil::geneToString<_DataType>( data_ );
 	}
 };
 

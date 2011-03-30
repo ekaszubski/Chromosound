@@ -51,23 +51,9 @@ namespace AudioGenomeDefs
 		return key <= 0 ? 1.0 : 440 * pow( 2, ( (float) key - 49 ) / 12 );
 	}
 
-	static float getDurationFromCycles( const _SizeType & num_cycles )
+	static float getDurationFromCycles( const _SizeType & num_cycles, const _SizeType & cycles_per_second = 16 )
 	{
-		return (float) num_cycles / 16;
-	}
-
-	template<class _DataType>
-	void range( _DataType & value, _DataType low, _DataType high, bool wrap = false )
-	{
-		if ( !wrap )
-		{
-			value = value < low ? low : value > high ? high : value;
-			return;
-		}
-		while ( value < low )
-			value = high + ( low - value );
-		while ( value > high )
-			value -= ( high - low );
+		return (float) num_cycles / cycles_per_second;
 	}
 
 	// 0 -> 1/16; 4 -> 1/1
@@ -182,16 +168,13 @@ namespace GeneticProcessUtil
 {
 
 	template<>
-	class Str<AudioGenomeDefs::_DataType>
+	// static
+	std::string geneToString<AudioGenomeDefs::_DataType> ( AudioGenomeDefs::_DataType data )
 	{
-	public:
-		static std::string str( AudioGenomeDefs::_DataType data )
-		{
-			std::stringstream ss;
-			ss << "(" << data.toggle_type << ":" << data.toggle_value << ")";// << ":" << data.beat_index << ")";
-			return ss.str();
-		}
-	};
+		std::stringstream ss;
+		ss << "(" << data.toggle_type << ":" << data.toggle_value << ")";// << ":" << data.beat_index << ")";
+		return ss.str();
+	}
 
 }
 
@@ -252,7 +235,7 @@ namespace AudioGenomeDefs
 				break;
 			case _AudioGeneEncodings::key_rotate:
 				state.key_index += control_gene.toggle_value ? 1 : -1;
-				range( state.key_index, (int) 0, (int) 12, true );
+				GeneticProcessUtil::range( state.key_index, (int) 0, (int) 12, true );
 				//__DEBUG__NORMAL__ printf( "Updated key_index: %u\n", state.key_index );
 				break;
 			case _AudioGeneEncodings::key_flip:
@@ -263,17 +246,17 @@ namespace AudioGenomeDefs
 				// int - increment by value
 			case _AudioGeneEncodings::duration:
 				state.duration_index += control_gene.toggle_value;
-				range( state.duration_index, (int) 0, (int) 4 );
+				GeneticProcessUtil::range( state.duration_index, (int) 0, (int) 4 );
 				//__DEBUG__NORMAL__ printf( "Updated duration_index: %u\n", state.duration_index );
 				break;
 			case _AudioGeneEncodings::time:
 				state.beat_frequency_index += control_gene.toggle_value;
-				range( state.beat_frequency_index, (int) 0, (int) 3 );
+				GeneticProcessUtil::range( state.beat_frequency_index, (int) 0, (int) 3 );
 				//__DEBUG__NORMAL__ printf( "Updated beat_frequency_index: %u\n", state.beat_frequency_index );
 				break;
 			case _AudioGeneEncodings::pitch:
 				state.pitch_index += control_gene.toggle_value;
-				range( state.pitch_index, (int) 21, (int) 68 );
+				GeneticProcessUtil::range( state.pitch_index, (int) 21, (int) 68 );
 				//__DEBUG__NORMAL__ printf( "Updated pitch_index: %u\n", state.pitch_index );
 				break;
 			}
@@ -452,7 +435,7 @@ public:
 				if ( type != 0 )
 				{
 					const float duration = AudioGenomeDefs::getDurationFromCycles( wave_fsm.last_note_duration );
-					const float frequency = type == 1 ? AudioGenomeDefs::getFrequency( wave_fsm.last_state.pitch_index ) : type == 2 ? 10 : 0;
+					const float frequency = type == 1 ? AudioGenomeDefs::getFrequency( wave_fsm.last_state.pitch_index ) : type == 2 ? 8 : 0;
 
 					wave_descriptors.push_back( _WaveDescriptor( type, wave_fsm.last_state.shape, frequency, wave_fsm.last_state.phase, duration ) );
 
